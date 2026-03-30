@@ -29,6 +29,8 @@
       --fill-gray:#f1f2f4;
       --holiday:#d14a4a;
       --workday:#2f6fde;
+      --today:#111111;
+      --today-ring:#111111;
       --radius-xl:26px;
       --radius-lg:20px;
       --radius-md:16px;
@@ -304,6 +306,10 @@
     [data-paint="purple"] .chip{background:var(--purple);border-color:var(--purple)}
     [data-paint="gray"] .chip{background:var(--gray);border-color:var(--gray)}
     [data-paint="none"] .chip{background:transparent}
+    .is-today{border-color:var(--today-ring)!important;box-shadow:0 0 0 2px rgba(17,17,17,.04), 0 8px 20px rgba(17,17,17,.06)!important}
+    .today-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--today);color:#fff;font-size:12px;font-weight:700;line-height:1}
+    .jump-flash{animation:jumpFlash .9s ease}
+    @keyframes jumpFlash{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(17,17,17,.18)}40%{transform:scale(1.01);box-shadow:0 0 0 8px rgba(17,17,17,.06)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(17,17,17,0)}}
 
     @media (max-width:1150px){
       .month-grid,.week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -362,6 +368,7 @@
         <div class="inline-tools">
           <button class="mini" id="monthPrev">上一个</button>
           <select class="picker" id="monthJump"></select>
+          <button class="mini today-btn" id="monthToday">今天</button>
           <button class="mini" id="monthNext">下一个</button>
         </div>
       </div>
@@ -377,6 +384,7 @@
         <div class="inline-tools">
           <button class="mini" id="weekPrev">上一个</button>
           <select class="picker" id="weekJump"></select>
+          <button class="mini today-btn" id="weekToday">今天</button>
           <button class="mini" id="weekNext">下一个</button>
         </div>
       </div>
@@ -390,6 +398,7 @@
           <div class="panel-caption">日复盘在左，对应周复盘在右。</div>
         </div>
         <div class="inline-tools">
+          <button class="mini today-btn" id="reviewToday">今天</button>
           <button class="mini" id="reviewTop">回到顶部</button>
         </div>
       </div>
@@ -403,6 +412,9 @@ const YEAR = 2026;
 const weekdays = ["周一","周二","周三","周四","周五","周六","周日"];
 const monthNames = Array.from({length:12}, (_,i)=>`${i+1}月`);
 let focusedField = null;
+const now = new Date();
+const todayKey = fmtDate(now);
+const todayMonthIndex = now.getFullYear() === YEAR ? now.getMonth() : 0;
 
 const holidayMap = {
   "2026-01-01":"元旦","2026-01-02":"元旦","2026-01-03":"元旦",
@@ -528,15 +540,17 @@ function buildMonthCard(monthIndex){
   const daysRow = card.querySelector(".days-row");
   cells.forEach((c, idx)=>{
     const dateStr = fmtDate(c.date);
+    const isToday = dateStr === todayKey && c.current;
     const day = document.createElement("section");
-    day.className = `day${c.current ? "" : " other"}`;
+    day.className = `day${c.current ? "" : " other"}${isToday ? " is-today" : ""}`;
     day.dataset.row = String(Math.floor(idx/7));
     day.dataset.role = "paintable";
     day.dataset.paint = getPaint(`plan_${dateStr}`);
+    day.dataset.date = dateStr;
     day.innerHTML = `
       <div class="day-head">
         <div class="day-left">
-          <div class="date-num">${c.label}</div>
+          <div class="date-num">${isToday ? `<span class="today-badge">${c.label}</span>` : c.label}</div>
           <div class="holiday">${holidayMap[dateStr] || ""}</div>
           <div class="worktag">${workdayMap[dateStr] || ""}</div>
         </div>
@@ -553,6 +567,7 @@ function buildWeekCard(w, idx){
   const card = document.createElement("article");
   card.className = "card week-card";
   card.dataset.index = String(idx);
+  card.dataset.week = String(w.weekNo);
   card.innerHTML = `
     <div class="card-head">
       <div>
@@ -580,13 +595,15 @@ function buildWeekCard(w, idx){
   const grid = card.querySelector(".week-grid");
   w.days.forEach((d,i)=>{
     const dateStr = fmtDate(d);
+    const isToday = dateStr === todayKey;
     const col = document.createElement("section");
-    col.className = "week-col";
+    col.className = `week-col${isToday ? " is-today" : ""}`;
     col.dataset.role = "paintable";
     col.dataset.paint = getPaint(`weekplan_${dateStr}`);
+    col.dataset.date = dateStr;
     col.innerHTML = `
       <div class="week-col-head">
-        <div class="week-name">${weekdays[i]}</div>
+        <div class="week-name">${weekdays[i]} ${isToday ? '<span class="today-badge">今天</span>' : ""}</div>
         <div class="week-date">${dateStr}</div>
         <div class="week-extra">${holidayMap[dateStr] || workdayMap[dateStr] || ""}</div>
       </div>
@@ -603,6 +620,7 @@ function buildReviewPage(){
   weeks.forEach(w=>{
     const sec = document.createElement("section");
     sec.className = "review-week";
+    sec.dataset.week = String(w.weekNo);
     sec.innerHTML = `
       <div class="review-left">
         <div class="review-head">
@@ -619,13 +637,15 @@ function buildReviewPage(){
     const list = sec.querySelector(".review-days");
     w.days.forEach((d,i)=>{
       const dateStr = fmtDate(d);
+      const isToday = dateStr === todayKey;
       const day = document.createElement("section");
-      day.className = "review-day";
+      day.className = `review-day${isToday ? " is-today" : ""}`;
       day.dataset.role = "paintable";
       day.dataset.paint = getPaint(`review_day_${dateStr}`);
+      day.dataset.date = dateStr;
       day.innerHTML = `
         <div class="review-day-meta">
-          <div class="review-day-date">${weekdays[i]}｜${dateStr}</div>
+          <div class="review-day-date">${weekdays[i]}｜${dateStr}${isToday ? " · 今天" : ""}</div>
           <div class="review-day-holiday">${holidayMap[dateStr] || workdayMap[dateStr] || ""}</div>
         </div>
         <textarea class="review-day-body" data-key="review_day_${dateStr}"></textarea>
@@ -689,7 +709,50 @@ function buildJumpSelects(){
 }
 
 function renderAll(){
-  const monthSnap = document.getElementById("monthSnap");
+  
+function flash(el){
+  if(!el) return;
+  el.classList.remove("jump-flash");
+  void el.offsetWidth;
+  el.classList.add("jump-flash");
+}
+function setPanel(panelId){
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active", b.dataset.panel === panelId));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id === panelId));
+}
+function getTodayWeekIndex(){
+  return weeks.findIndex(w => w.days.some(d => fmtDate(d) === todayKey));
+}
+function goToTodayInMonth(){
+  if(now.getFullYear() !== YEAR) return;
+  setPanel("monthPanel");
+  goCard(monthSnap, todayMonthIndex);
+  document.getElementById("monthJump").value = String(todayMonthIndex);
+  setTimeout(() => {
+    const target = document.querySelector(`.month-card[data-index="${todayMonthIndex}"] .day[data-date="${todayKey}"]`);
+    if(target){ target.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); flash(target); }
+  }, 350);
+}
+function goToTodayInWeek(){
+  const idx = getTodayWeekIndex();
+  if(idx < 0) return;
+  setPanel("weekPanel");
+  goCard(weekSnap, idx);
+  document.getElementById("weekJump").value = String(idx);
+  setTimeout(() => {
+    const target = document.querySelector(`.week-card[data-index="${idx}"] .week-col[data-date="${todayKey}"]`);
+    if(target){ target.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); flash(target); }
+  }, 350);
+}
+function goToTodayInReview(){
+  const idx = getTodayWeekIndex();
+  if(idx < 0) return;
+  setPanel("reviewPanel");
+  const target = document.querySelector(`.review-day[data-date="${todayKey}"]`);
+  if(target){ setTimeout(() => { target.scrollIntoView({behavior:"smooth", block:"center"}); flash(target); }, 80); }
+}
+
+const monthSnap = document.getElementById("monthSnap");
   const weekSnap = document.getElementById("weekSnap");
   monthSnap.innerHTML = "";
   weekSnap.innerHTML = "";
@@ -723,6 +786,49 @@ function bindHorizontalWheel(wrap){
   }, {passive:false});
 }
 
+
+function flash(el){
+  if(!el) return;
+  el.classList.remove("jump-flash");
+  void el.offsetWidth;
+  el.classList.add("jump-flash");
+}
+function setPanel(panelId){
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active", b.dataset.panel === panelId));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id === panelId));
+}
+function getTodayWeekIndex(){
+  return weeks.findIndex(w => w.days.some(d => fmtDate(d) === todayKey));
+}
+function goToTodayInMonth(){
+  if(now.getFullYear() !== YEAR) return;
+  setPanel("monthPanel");
+  goCard(monthSnap, todayMonthIndex);
+  document.getElementById("monthJump").value = String(todayMonthIndex);
+  setTimeout(() => {
+    const target = document.querySelector(`.month-card[data-index="${todayMonthIndex}"] .day[data-date="${todayKey}"]`);
+    if(target){ target.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); flash(target); }
+  }, 350);
+}
+function goToTodayInWeek(){
+  const idx = getTodayWeekIndex();
+  if(idx < 0) return;
+  setPanel("weekPanel");
+  goCard(weekSnap, idx);
+  document.getElementById("weekJump").value = String(idx);
+  setTimeout(() => {
+    const target = document.querySelector(`.week-card[data-index="${idx}"] .week-col[data-date="${todayKey}"]`);
+    if(target){ target.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); flash(target); }
+  }, 350);
+}
+function goToTodayInReview(){
+  const idx = getTodayWeekIndex();
+  if(idx < 0) return;
+  setPanel("reviewPanel");
+  const target = document.querySelector(`.review-day[data-date="${todayKey}"]`);
+  if(target){ setTimeout(() => { target.scrollIntoView({behavior:"smooth", block:"center"}); flash(target); }, 80); }
+}
+
 const monthSnap = document.getElementById("monthSnap");
 const weekSnap = document.getElementById("weekSnap");
 bindHorizontalWheel(monthSnap);
@@ -735,14 +841,14 @@ document.getElementById("weekNext").addEventListener("click", ()=>goCard(weekSna
 document.getElementById("monthJump").addEventListener("change", e=>goCard(monthSnap, parseInt(e.target.value, 10)));
 document.getElementById("weekJump").addEventListener("change", e=>goCard(weekSnap, parseInt(e.target.value, 10)));
 document.getElementById("reviewTop").addEventListener("click", ()=>document.getElementById("reviewLayout").scrollTo({top:0, behavior:"smooth"}));
+document.getElementById("monthToday").addEventListener("click", goToTodayInMonth);
+document.getElementById("weekToday").addEventListener("click", goToTodayInWeek);
+document.getElementById("reviewToday").addEventListener("click", goToTodayInReview);
 document.getElementById("printBtn").addEventListener("click", ()=>window.print());
 
 document.querySelectorAll(".nav-btn").forEach(btn=>{
   btn.addEventListener("click", ()=>{
-    document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
-    btn.classList.add("active");
-    const target = btn.dataset.panel;
-    document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id === target));
+    setPanel(btn.dataset.panel);
   });
 });
 
@@ -753,6 +859,12 @@ window.addEventListener("resize", ()=>{
 });
 
 renderAll();
+if(now.getFullYear() === YEAR){
+  document.getElementById("monthJump").value = String(todayMonthIndex);
+  const widx = getTodayWeekIndex();
+  if(widx >= 0) document.getElementById("weekJump").value = String(widx);
+  setTimeout(goToTodayInMonth, 120);
+}
 </script>
 </body>
 </html>
